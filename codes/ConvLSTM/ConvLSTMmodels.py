@@ -240,7 +240,7 @@ class ConvLSTM(nn.Module):
 
         self.cell_list = nn.ModuleList(cell_list)
 
-    def forward(self, input_tensor, first_timestep=False, hidden_state=None):
+    def forward(self, input_tensor, hidden_state=None, first_timestep=False):
         """
         Forward pass of the ConvLSTM module.
 
@@ -266,10 +266,11 @@ class ConvLSTM(nn.Module):
         b, _, _, h, w = input_tensor.size()
 
 
-        if hidden_state is None or first_timestep or self.hidden_states is None:
+        if first_timestep or (hidden_state is None and self.hidden_states is None):
             hidden_state = self._init_hidden(batch_size=b, image_size=(h, w))
-        else:
+        elif hidden_state is None and self.hidden_states is not None:
             hidden_state = self.hidden_states
+            
 
         layer_output_list = []
         last_state_list = []
@@ -430,18 +431,20 @@ class EncoderRNN(nn.Module):
 class ConvLSTMEncoderDecoder(nn.Module):
     def __init__(self, input_dim, hidden_dim, kernel_size, num_layers, batch_first=True):
         super(ConvLSTMEncoderDecoder, self).__init__()
-        self.encoder = ConvLSTM(input_dim, hidden_dim, kernel_size, num_layers, batch_first=batch_first)
-        self.decoder = ConvLSTM(hidden_dim[-1], hidden_dim, kernel_size, num_layers, batch_first=batch_first)
+        self.encoder = ConvLSTM(input_dim, hidden_dim, kernel_size, num_layers, batch_first=batch_first, return_all_layers=True)
+        self.decoder = ConvLSTM(hidden_dim[-1], hidden_dim, kernel_size, num_layers, batch_first=batch_first, return_all_layers=True)
 
     def forward(self, input_tensor, target_length):
-        _, encoder_states = self.encoder(input_tensor)
-        decoder_input = input_tensor[:, -1, :, :, :].unsqueeze(1)
+        encoder_output, encoder_states = self.encoder(input_tensor)
+        decoder_input = encoder_output[-1]#input_tensor[:, -1, :, :, :].unsqueeze(1)
         decoder_outputs = []
-
+        print(target_length)
         for _ in range(target_length):
+            print(_)
             decoder_output, encoder_states = self.decoder(decoder_input, encoder_states)
-            decoder_input = decoder_output
-            decoder_outputs.append(decoder_output)
+            decoder_input = decoder_output[-1]
+            print(decoder_input.shape)
+            decoder_outputs.append(decoder_output[-1])
 
         decoder_outputs = torch.cat(decoder_outputs, dim=1)
         return decoder_outputs
