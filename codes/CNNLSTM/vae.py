@@ -14,37 +14,84 @@ class Flatten(nn.Module):
 class UnFlatten(nn.Module):
     def forward(self, input, size=1024):
         return input.view(input.size(0), size, 1, 1)
+"""
+    def __init__(self, image_channels=3, , 1024], z_dim=32, batch_norm=True):
+        super(VAE, self).__init__()
+        self.batch_norm = batch_norm
+
+        # Build Encoder
+        self.encoder = nn.Sequential()
+        in_channels = image_channels
+        for h_dim in hidden_dims[:-1]:
+            self.encoder.append(nn.Conv2d(in_channels, h_dim, kernel_size=4, stride=2, padding=1))
+            if self.batch_norm:
+                self.encoder.append(nn.BatchNorm2d(h_dim))
+            #self.encoder.append(nn.ReLU())
+            self.encoder.append(nn.LeakyReLU())
+            in_channels = h_dim
+        self.encoder.append(Flatten())
+
+        hdim = hidden_dims[-1]
+        self.fc1 = nn.Linear(hdim, z_dim)
+        self.fc2 = nn.Linear(hdim, z_dim)
+        self.fc3 = nn.Linear(z_dim, hdim)
+        hidden_dims = hidden_dims[:-2] + [hdim]
+"""
+
+
+def get_convtranspose2d_finalsize(kernels: list, paddings: list) -> int:
+    if len(kernels) == 1:
+        return kernels[0]
+    return kernels[-1] + (paddings[-1]*(get_convtranspose2d_finalsize(kernels[:-1], paddings[:-1])-1))
+
+
 
 class VAE(nn.Module):
-    def __init__(self, image_channels=3, h_dim=1024, z_dim=32):
+    def __init__(
+            self,
+            image_channels=3,
+            hidden_dims = [32, 64, 128, 256],
+            h_dim=1024,
+            z_dim=32,
+            batch_norm=True,
+            kernel_sizes_encoder = [4,4,4,4],
+            strides_encoder = [2,2,2,2],
+            kernel_sizes_decoder = [5,5,6,6],
+            strides_decoder = [2,2,2,2],
+        ):
         super(VAE, self).__init__()
-        self.encoder = nn.Sequential(
-            nn.Conv2d(image_channels, 32, kernel_size=4, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=4, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(128, 256, kernel_size=4, stride=2),
-            nn.ReLU(),
-            Flatten()
-        )
-        
+        self.batch_norm = batch_norm
+
+        # Build encoder
+        self.encoder = nn.Sequential()
+        in_channels = image_channels
+        for hdim, ks, stride in zip(hidden_dims, kernel_sizes_encoder, strides_encoder):
+            self.encoder.append(nn.Conv2d(in_channels, hdim, kernel_size=ks, stride=stride))
+            if self.batch_norm:
+                self.encoder.append(nn.BatchNorm2d(hdim))
+            #self.encoder.append(nn.ReLU())
+            self.encoder.append(nn.LeakyReLU())
+            in_channels = hdim
+        self.encoder.append(Flatten())
+
         self.fc1 = nn.Linear(h_dim, z_dim)
         self.fc2 = nn.Linear(h_dim, z_dim)
         self.fc3 = nn.Linear(z_dim, h_dim)
-        
-        self.decoder = nn.Sequential(
-            UnFlatten(),
-            nn.ConvTranspose2d(h_dim, 128, kernel_size=5, stride=2),
-            nn.ReLU(),
-            nn.ConvTranspose2d(128, 64, kernel_size=5, stride=2),
-            nn.ReLU(),
-            nn.ConvTranspose2d(64, 32, kernel_size=6, stride=2),
-            nn.ReLU(),
-            nn.ConvTranspose2d(32, image_channels, kernel_size=6, stride=2),
-            nn.Sigmoid(),
-        )
+
+        # Build Decoder
+        hidden_dims[-1] = h_dim
+        self.decoder = nn.Sequential()
+        self.decoder.append(UnFlatten())
+        for hdim, hdimpre, ks, stride in zip(hidden_dims[::-1], hidden_dims[-2::-1], kernel_sizes_decoder[:-1], strides_decoder[:-1]):
+            self.decoder.append(nn.ConvTranspose2d(hdim, hdimpre, kernel_size=ks, stride=stride))
+            if self.batch_norm:
+                self.decoder.append(nn.BatchNorm2d(hdimpre))
+            #self.decoder.append(nn.ReLU())
+            self.decoder.append(nn.LeakyReLU())
+            in_channels = hdimpre
+        self.decoder.append(nn.ConvTranspose2d(in_channels, image_channels, kernel_size=kernel_sizes_decoder[-1], stride=strides_decoder[-1]))
+        self.decoder.append(nn.Sigmoid())
+
 
     def reparameterize(self, mu, logvar):
         std = logvar.mul(0.5).exp_()
@@ -78,7 +125,7 @@ class VAE(nn.Module):
 
 
 def vae_loss_fn(recon_x, x, mu, logvar):
-    BCE = F.binary_cross_entropy(recon_x, x, reduction='mean')
+    BCE = F.binary_cross_entropy(recon_x, x, reduction='sum')
     #BCE = F.binary_cross_entropy(recon_x, x, size_average=False)
     # BCE = F.mse_loss(recon_x, x, size_average=False)
 
