@@ -5,7 +5,6 @@ Initial work from: https://github.com/ndrplz/ConvLSTM_pytorch
 
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset
 
 
 class ConvLSTMCell(nn.Module):
@@ -367,52 +366,20 @@ class ConvLSTM(nn.Module):
         return param
 
 
-class VideoDataset(Dataset):
-
-    def __init__(self, videos, target_videos=None, transform=None, input_target_cut = -1):
-        self.videos = videos
-        self.target_videos = target_videos
-        self.input_target_cut = input_target_cut
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.videos)
-
-    def __getitem__(self, idx):
-        video = self.videos[idx].values
-        if self.transform is not None:
-            video = self.apply_transform(video)
-
-        if self.target_videos is not None:
-            targ_vid = self.target_videos[idx].values
-            if self.transform is not None:
-                targ_vid = self.apply_transform(targ_vid)
-            return video, targ_vid
-        
-        # Assume each video has N frames, input and target will be N-1 and 1 respectively
-        input_seq = video[:self.input_target_cut]
-        target_seq = video[self.input_target_cut:]
-        return input_seq, target_seq
-    
-    def apply_transform(self, video):
-        transformed_video = []
-        for frame in video:
-            transformed_frame = self.transform(frame)
-            transformed_video.append(transformed_frame)
-        return torch.stack(transformed_video)
-
-
-
-
 class decoder_D(nn.Module):
     def __init__(self, nc=3, nf=64):
         super(decoder_D, self).__init__()
         # Convolution layer to transform the feature maps to the desired number of output channels
         self.d1 = nn.Conv2d(in_channels=nf, out_channels=nc, kernel_size=(1, 1), stride=1, padding=0)
 
-    def forward(self, input):
-        d1 = self.d1(input)
-        return d1
+    def forward(self, input_tensor):
+        seq_len = input_tensor.shape[1]
+        outs = []
+        # Iterate over each time step
+        for t in range(seq_len):
+            o = self.d1(input_tensor[:, t, :, :, :])
+            outs.append(o)
+        return torch.stack(outs, dim=1)
 
 class EncoderRNN(nn.Module):
     def __init__(self, convcell, device, nc=3, nf=64):
@@ -432,19 +399,23 @@ class ConvLSTMEncoderDecoder(nn.Module):
     def __init__(self, input_dim, hidden_dim, kernel_size, num_layers, batch_first=True):
         super(ConvLSTMEncoderDecoder, self).__init__()
         self.encoder = ConvLSTM(input_dim, hidden_dim, kernel_size, num_layers, batch_first=batch_first, return_all_layers=True)
-        self.decoder = ConvLSTM(hidden_dim[-1], hidden_dim, kernel_size, num_layers, batch_first=batch_first, return_all_layers=True)
+        self.lstm = ConvLSTM(hidden_dim[-1], hidden_dim, kernel_size, num_layers, batch_first=batch_first, return_all_layers=True)
+        self.decoder = decoder_D(nc=input_dim, nf=hidden_dim[-1])
 
     def forward(self, input_tensor, target_length):
-        encoder_output, encoder_states = self.encoder(input_tensor)
-        decoder_input = encoder_output[-1]#input_tensor[:, -1, :, :, :].unsqueeze(1)
+        encoder_output, encoder_states = self.encoder(input_tensor[:, :1, :, :, :])
+        lstm_input = encoder_output[-1]#input_tensor[:, -1, :, :, :].unsqueeze(1)
         decoder_outputs = []
         print(target_length)
+        print(lstm_input.shape)
         for _ in range(target_length):
             print(_)
-            decoder_output, encoder_states = self.decoder(decoder_input, encoder_states)
-            decoder_input = decoder_output[-1]
-            print(decoder_input.shape)
-            decoder_outputs.append(decoder_output[-1])
+            lstm_output, encoder_states = self.lstm(lstm_input, encoder_states)
+            lstm_input = lstm_output[-1]
+            print(lstm_input.shape)
+            decoder_output = torch.sigmoid(self.decoder(lstm_output[-1]))
+            print(decoder_output.shape)
+            decoder_outputs.append(decoder_output)
 
         decoder_outputs = torch.cat(decoder_outputs, dim=1)
         return decoder_outputs
