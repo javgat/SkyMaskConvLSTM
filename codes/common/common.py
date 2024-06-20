@@ -31,12 +31,13 @@ def set_memory_limit_if_not_limit(factor = 1):
 
 class VideoDataset(Dataset):
 
-    def __init__(self, videos, target_videos=None, transform=None, input_target_cut = -1, stack_videos: bool = False):
+    def __init__(self, videos, target_videos=None, transform=None, input_target_cut = -1, stack_videos: bool = False, device='cpu'):
         self.videos = videos
         self.target_videos = target_videos
         self.input_target_cut = input_target_cut
         self.transform = transform
         self.stack_videos = stack_videos
+        self.device = device
 
     def __len__(self):
         return len(self.videos)
@@ -60,8 +61,8 @@ class VideoDataset(Dataset):
     def __getitem__(self, idx):
         vid, targ = self.___getitem__(idx)
         if self.stack_videos:
-            return torch.cat([vid, targ])
-        return vid, targ
+            return torch.cat([vid, targ]).to(self.device)
+        return vid.to(self.device), targ.to(self.device)
     
     def apply_transform(self, video):
         transformed_video = []

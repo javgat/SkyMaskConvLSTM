@@ -54,6 +54,7 @@ class VAE(nn.Module):
             h_dim=1024,
             z_dim=32,
             batch_norm=True,
+            device='cpu',
             kernel_sizes_encoder = [4,4,4,4],
             strides_encoder = [2,2,2,2],
             kernel_sizes_decoder = [5,5,6,6],
@@ -61,6 +62,7 @@ class VAE(nn.Module):
         ):
         super(VAE, self).__init__()
         self.batch_norm = batch_norm
+        self.device = device
 
         # Build encoder
         self.encoder = nn.Sequential()
@@ -96,7 +98,7 @@ class VAE(nn.Module):
     def reparameterize(self, mu, logvar):
         std = logvar.mul(0.5).exp_()
         # return torch.normal(mu, std)
-        esp = torch.randn(*mu.size())
+        esp = torch.randn(*mu.size()).to(self.device)
         z = mu + std * esp
         return z
 
@@ -119,7 +121,7 @@ class VAE(nn.Module):
         return z
 
     def forward(self, x):
-        z, mu, logvar = self.encode(x)
+        z, mu, logvar = self.encode(x.to(self.device))
         z = self.decode(z)
         return z, mu, logvar
 
@@ -132,6 +134,6 @@ def vae_loss_fn(recon_x, x, mu, logvar):
     # see Appendix B from VAE paper:
     # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
     # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
-    KLD = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+    KLD = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp()).to(BCE.device)
 
     return BCE + KLD, BCE, KLD
