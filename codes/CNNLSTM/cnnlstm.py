@@ -30,7 +30,7 @@ class CNNLSTM(nn.Module):
         _, (h, c) = self.lstm_enc(zvects, (h_0, c_0))
         batch_size = zvects.size(0)
         target_size = zvects.size(2)
-        lstm_dec_input = torch.zeros((batch_size, 1, target_size)).to(zvects.device)
+        lstm_dec_input = zvects[:, -1].unsqueeze(1)
         lstm_out = torch.zeros((batch_size, target_len, target_size)).to(zvects.device)
         for t in range(target_len):
             out, (h, c) = self.lstm_dec(lstm_dec_input, (h, c))
