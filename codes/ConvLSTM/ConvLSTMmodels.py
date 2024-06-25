@@ -3,6 +3,8 @@
 Initial work from: https://github.com/ndrplz/ConvLSTM_pytorch
 """
 
+import random
+
 import torch
 import torch.nn as nn
 
@@ -366,56 +368,43 @@ class ConvLSTM(nn.Module):
         return param
 
 
-class decoder_D(nn.Module):
-    def __init__(self, nc=3, nf=64):
-        super(decoder_D, self).__init__()
-        # Convolution layer to transform the feature maps to the desired number of output channels
-        self.d1 = nn.Conv2d(in_channels=nf, out_channels=nc, kernel_size=(1, 1), stride=1, padding=0)
-
-    def forward(self, input_tensor):
-        seq_len = input_tensor.shape[1]
-        outs = []
-        # Iterate over each time step
-        for t in range(seq_len):
-            o = self.d1(input_tensor[:, t, :, :, :])
-            outs.append(o)
-        return torch.stack(outs, dim=1)
-
-class EncoderRNN(nn.Module):
-    def __init__(self, convcell, device, nc=3, nf=64):
-        super(EncoderRNN, self).__init__()
-        self.decoder_D = decoder_D(nc=nc, nf=nf)
-        self.decoder_D = self.decoder_D.to(device)  # Decoder to transform feature maps to output image
-        self.convcell = convcell.to(device)  # Convolutional LSTM cell
+class Seq2SeqConvLSTM(nn.Module):
+    def __init__(self, n_channels, hidden_dim, kernel_size, num_layers=1, device='cpu'):
+        super(Seq2SeqConvLSTM, self).__init__()
+        self.n_channels = n_channels # 3
+        self.hidden_dim = hidden_dim
+        self.kernel_size = kernel_size
+        self.num_layers = num_layers
+        self.device = device
+        # ConvLSTM as Seq2Seq LSTM model to customize output length. (?)
+        self.enc = ConvLSTM(n_channels, hidden_dim, kernel_size, num_layers, batch_first=True, return_all_layers=True).to(device)
+        self.dec = ConvLSTM(n_channels, hidden_dim, kernel_size, num_layers, batch_first=True, return_all_layers=True).to(device)
+        self.fc = nn.Conv2d(in_channels=hidden_dim, out_channels=n_channels, kernel_size=(1, 1), stride=1, padding=0).to(device)
 
 
-    def forward(self, input, first_timestep=False):
-        output, hidden = self.convcell(input, first_timestep=first_timestep) # Get hidden states and output from ConvLSTM
-        output_image = torch.sigmoid(self.decoder_D(output[-1])) # Decode the last output and apply sigmoid
-        return output_image
+    def forward(self, video, target_len: int,  target_seq=None, teacher_forcing_ratio=0.5):
+        # b, t, c, i0, i1
+        video = video.to(self.device)
+        if target_seq is not None:
+            target_seq = target_seq.to(self.device)
+        seq_dims = video.shape[0:2]
+        ## LSTM
+        _, hidden_lstm_s2s = self.enc(video, first_timestep=True)
+        batch_size = video.size(0)
+        target_size = video.size(2)
+        lstm_dec_input = video[:, -1].unsqueeze(1)
+        lstm_out = torch.zeros((batch_size, target_len, target_size, video.size(3), video.size(4))).to(video.device)
+        for t in range(target_len):
+            out, hidden_lstm_s2s = self.dec(lstm_dec_input, hidden_lstm_s2s)
+            out = out[-1].flatten(0, 1)
+            out = self.fc(out).unsqueeze(1)
+            lstm_out[:, t, :] = out.squeeze(1)
+            if target_seq is not None and random.random() < teacher_forcing_ratio:
+                lstm_dec_input = target_seq[:, t].unsqueeze(1)
+            else:
+                lstm_dec_input = out
 
-
-class ConvLSTMEncoderDecoder(nn.Module):
-    def __init__(self, input_dim, hidden_dim, kernel_size, num_layers, batch_first=True):
-        super(ConvLSTMEncoderDecoder, self).__init__()
-        self.encoder = ConvLSTM(input_dim, hidden_dim, kernel_size, num_layers, batch_first=batch_first, return_all_layers=True)
-        self.lstm = ConvLSTM(hidden_dim[-1], hidden_dim, kernel_size, num_layers, batch_first=batch_first, return_all_layers=True)
-        self.decoder = decoder_D(nc=input_dim, nf=hidden_dim[-1])
-
-    def forward(self, input_tensor, target_length):
-        encoder_output, encoder_states = self.encoder(input_tensor[:, :1, :, :, :])
-        lstm_input = encoder_output[-1]#input_tensor[:, -1, :, :, :].unsqueeze(1)
-        decoder_outputs = []
-        print(target_length)
-        print(lstm_input.shape)
-        for _ in range(target_length):
-            print(_)
-            lstm_output, encoder_states = self.lstm(lstm_input, encoder_states)
-            lstm_input = lstm_output[-1]
-            print(lstm_input.shape)
-            decoder_output = torch.sigmoid(self.decoder(lstm_output[-1]))
-            print(decoder_output.shape)
-            decoder_outputs.append(decoder_output)
-
-        decoder_outputs = torch.cat(decoder_outputs, dim=1)
-        return decoder_outputs
+        lstm_out = lstm_out.flatten(0,1)
+        ##
+        lstm_out = torch.unflatten(lstm_out, 0, (seq_dims[0], target_len))
+        return lstm_out
