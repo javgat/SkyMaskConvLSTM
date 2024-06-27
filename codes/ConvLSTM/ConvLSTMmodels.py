@@ -381,7 +381,7 @@ class RNNConvLSTM(nn.Module):
         self.fc = nn.Conv2d(in_channels=hidden_dims[-1], out_channels=n_channels, kernel_size=(1, 1), stride=1, padding=0).to(device)
 
 
-    def forward(self, video, target_len: int,  target_seq=None, teacher_forcing_ratio=0.5):
+    def forward(self, video, target_len: int,  target_seq=None, teacher_forcing_ratio=0.5, return_source_prediction=False):
         # b, t, c, i0, i1
         video = video.to(self.device)
         if target_seq is not None:
@@ -389,15 +389,26 @@ class RNNConvLSTM(nn.Module):
         seq_dims = video.shape[0:2]
         ## LSTM
         batch_size = video.size(0)
+        source_len = video.size(1)
         target_size = video.size(2)
-        lstm_dec_input = video[:, -1].unsqueeze(1)
-        lstm_out = torch.zeros((batch_size, target_len, target_size, video.size(3), video.size(4))).to(video.device)
         hidden_lstm_s2s = None
-        for t in range(target_len):
+        if return_source_prediction:
+            lstm_out_source = torch.zeros((batch_size, source_len-1, target_size, video.size(3), video.size(4))).to(video.device)
+        for t in range(source_len-1):
+            lstm_dec_input = video[:, t].unsqueeze(1)
             if hidden_lstm_s2s is not None:
                 out, hidden_lstm_s2s = self.enc(lstm_dec_input, hidden_lstm_s2s)
             else:
                 out, hidden_lstm_s2s = self.enc(lstm_dec_input, first_timestep=True)
+            if return_source_prediction:
+                out = out[-1].flatten(0, 1)
+                out = self.fc(out).unsqueeze(1)
+                lstm_out_source[:, t, :] = out.squeeze(1)
+
+        lstm_dec_input = video[:, -1].unsqueeze(1)
+        lstm_out = torch.zeros((batch_size, target_len, target_size, video.size(3), video.size(4))).to(video.device)
+        for t in range(target_len):
+            out, hidden_lstm_s2s = self.enc(lstm_dec_input, hidden_lstm_s2s)
             out = out[-1].flatten(0, 1)
             out = self.fc(out).unsqueeze(1)
             lstm_out[:, t, :] = out.squeeze(1)
@@ -408,7 +419,13 @@ class RNNConvLSTM(nn.Module):
 
         lstm_out = lstm_out.flatten(0,1)
         ##
-        lstm_out = torch.unflatten(lstm_out, 0, (seq_dims[0], target_len))
+        lstm_out = torch.unflatten(lstm_out, 0, (batch_size, target_len))
+
+        if return_source_prediction:
+            lstm_out_source = lstm_out_source.flatten(0,1)
+            lstm_out_source = torch.unflatten(lstm_out_source, 0, (batch_size, source_len-1))
+            lstm_out = torch.cat([lstm_out_source, lstm_out], 1)
+            
         return lstm_out
 
 
