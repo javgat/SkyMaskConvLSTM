@@ -188,7 +188,8 @@ class ConvLSTM(nn.Module):
     """
 
     def __init__(self, input_dim, hidden_dim, kernel_size, num_layers,
-                 batch_first=False, bias=True, return_all_layers=False):
+                 device='cpu', batch_first=False, bias=True, return_all_layers=False,
+                 batch_normalization=False):
         """
         Initialize the ConvLSTM module.
 
@@ -209,6 +210,9 @@ class ConvLSTM(nn.Module):
             If True, adds a learnable bias to the convolution. Default is True.
         return_all_layers: bool, optional
             If True, returns the list of outputs for all layers. Default is False.
+        batch_normalization: bool, optional
+            If True, batch normalization and relu activation will be performed between layers.
+            Default is False.
         """
         super(ConvLSTM, self).__init__()
 
@@ -229,6 +233,12 @@ class ConvLSTM(nn.Module):
         self.bias = bias
         self.return_all_layers = return_all_layers
         self.hidden_states = None
+        self.batch_normalization = batch_normalization
+
+        if self.batch_normalization:
+            # Create batch normalization elements
+            self.batch_norms = nn.ModuleList([nn.BatchNorm2d(h, device=device) for h in hidden_dim[:-1]])
+            self.activations = nn.ModuleList([nn.ReLU() for _ in hidden_dim[:-1]])
 
         # Create a list of ConvLSTM cells
         cell_list = []
@@ -292,6 +302,11 @@ class ConvLSTM(nn.Module):
 
             # Stack outputs along the time dimension
             layer_output = torch.stack(output_inner, dim=1)
+
+            if self.batch_normalization and layer_idx != self.num_layers-1:
+                layer_output = self.batch_norms[layer_idx](layer_output)#.permute(0, 2, 1, 3, 4))
+                layer_output = self.activations[layer_idx](layer_output)#.permute(0, 2, 1, 3, 4)
+
             cur_layer_input = layer_output
 
             layer_output_list.append(layer_output)
@@ -377,7 +392,7 @@ class RNNConvLSTM(nn.Module):
         self.kernel_size = kernel_size
         self.num_layers = num_layers
         self.device = device
-        self.enc = ConvLSTM(n_channels, hidden_dims, kernel_size, num_layers, batch_first=True, return_all_layers=True).to(device)
+        self.enc = ConvLSTM(n_channels, hidden_dims, kernel_size, num_layers, device, batch_first=True, return_all_layers=True).to(device)
         self.fc = nn.Conv2d(in_channels=hidden_dims[-1], out_channels=n_channels, kernel_size=(1, 1), stride=1, padding=0).to(device)
 
 
@@ -386,7 +401,6 @@ class RNNConvLSTM(nn.Module):
         video = video.to(self.device)
         if target_seq is not None:
             target_seq = target_seq.to(self.device)
-        seq_dims = video.shape[0:2]
         ## LSTM
         batch_size = video.size(0)
         source_len = video.size(1)
@@ -429,6 +443,78 @@ class RNNConvLSTM(nn.Module):
         return lstm_out
 
 
+class SegmentedConvLSTMNet(nn.Module):
+    def __init__(self, hidden_dims: List[int], kernel_size: Union[List[Tuple[int]], Tuple[int]], num_layers: int=1, device='cpu', n_channels: int = 5):
+        super(SegmentedConvLSTMNet, self).__init__()
+        self.n_channels = n_channels
+        self.hidden_dims = hidden_dims
+        self.kernel_size = kernel_size
+        self.num_layers = num_layers
+        self.device = device
+
+        # Definir la red ConvLSTM
+        self.enc = ConvLSTM(n_channels, hidden_dims, kernel_size, num_layers, device, batch_first=True, return_all_layers=True, batch_normalization=True).to(device)
+        
+        # Batch Normalization y Activación ReLU
+        self.batch_norm = nn.BatchNorm3d(hidden_dims[-1], device=device)
+        self.activation = nn.ReLU()
+
+        # Capa de salida
+        self.fc = nn.Conv3d(in_channels=hidden_dims[-1], out_channels=n_channels, kernel_size=(1, 1, 1), stride=1, padding=0).to(device)
+        self.softmax = nn.Softmax(dim=1)
+
+
+    def forward(self, video, target_len: int, target_seq=None, teacher_forcing_ratio=0.5, return_source_prediction=False):
+        # b, t, c, i0, i1
+        video = video.to(self.device)
+        if target_seq is not None:
+            target_seq = target_seq.to(self.device)
+        ## LSTM
+        batch_size = video.size(0)
+        source_len = video.size(1)
+        hidden_lstm_s2s = None
+
+        if return_source_prediction:
+            lstm_out_source = torch.zeros((batch_size, source_len-1, self.n_channels, video.size(3), video.size(4))).to(video.device)
+        for t in range(source_len - 1):
+            lstm_dec_input = video[:, t].unsqueeze(1)
+            if hidden_lstm_s2s is not None:
+                out, hidden_lstm_s2s = self.enc(lstm_dec_input, hidden_lstm_s2s)
+            else:
+                out, hidden_lstm_s2s = self.enc(lstm_dec_input, first_timestep=True)
+            if return_source_prediction:
+                out = self.batch_norm(out[-1].permute(0, 2, 1, 3, 4))
+                out = self.activation(out)
+                out = self.fc(out)
+                out = self.softmax(out).permute(0, 2, 1, 3, 4).flatten(0, 1)
+                lstm_out_source[:, t, :] = out.squeeze(1)
+
+        lstm_dec_input = video[:, -1].unsqueeze(1)
+        lstm_out = torch.zeros((batch_size, target_len, self.n_channels, video.size(3), video.size(4))).to(video.device)
+
+        for t in range(target_len):
+            out, hidden_lstm_s2s = self.enc(lstm_dec_input, hidden_lstm_s2s)
+            out = self.batch_norm(out[-1].permute(0, 2, 1, 3, 4))
+            out = self.activation(out)
+            out = self.fc(out)
+            out = self.softmax(out).permute(0, 2, 1, 3, 4).flatten(0, 1)
+            lstm_out[:, t, :] = out.squeeze(1)
+            if target_seq is not None and random.random() < teacher_forcing_ratio:
+                lstm_dec_input = target_seq[:, t].unsqueeze(1)
+            else:
+                lstm_dec_input = out
+
+        lstm_out = lstm_out.flatten(0, 1)
+        lstm_out = torch.unflatten(lstm_out, 0, (batch_size, target_len))
+
+        if return_source_prediction:
+            lstm_out_source = lstm_out_source.flatten(0, 1)
+            lstm_out_source = torch.unflatten(lstm_out_source, 0, (batch_size, source_len - 1))
+            lstm_out = torch.cat([lstm_out_source, lstm_out], 1)
+        
+        return lstm_out
+
+
 class Seq2SeqConvLSTM(nn.Module):
     def __init__(self, hidden_dims: list, kernel_size: Union[List[Tuple[int]], Tuple[int]], num_layers: int=1, device='cpu', n_channels: int = 3):
         super(Seq2SeqConvLSTM, self).__init__()
@@ -438,8 +524,8 @@ class Seq2SeqConvLSTM(nn.Module):
         self.num_layers = num_layers
         self.device = device
         # ConvLSTM as Seq2Seq LSTM model to customize output length. (?)
-        self.enc = ConvLSTM(n_channels, hidden_dims, kernel_size, num_layers, batch_first=True, return_all_layers=True).to(device)
-        self.dec = ConvLSTM(n_channels, hidden_dims, kernel_size, num_layers, batch_first=True, return_all_layers=True).to(device)
+        self.enc = ConvLSTM(n_channels, hidden_dims, kernel_size, num_layers, device, batch_first=True, return_all_layers=True).to(device)
+        self.dec = ConvLSTM(n_channels, hidden_dims, kernel_size, num_layers, device, batch_first=True, return_all_layers=True).to(device)
         self.fc = nn.Conv2d(in_channels=hidden_dims[-1], out_channels=n_channels, kernel_size=(1, 1), stride=1, padding=0).to(device)
 
 
