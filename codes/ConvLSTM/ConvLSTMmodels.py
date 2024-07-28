@@ -237,7 +237,7 @@ class ConvLSTM(nn.Module):
 
         if self.batch_normalization:
             # Create batch normalization elements
-            self.batch_norms = nn.ModuleList([nn.BatchNorm2d(h, device=device) for h in hidden_dim[:-1]])
+            self.batch_norms = nn.ModuleList([nn.BatchNorm3d(h, device=device) for h in hidden_dim[:-1]])
             self.activations = nn.ModuleList([nn.ReLU() for _ in hidden_dim[:-1]])
 
         # Create a list of ConvLSTM cells
@@ -304,8 +304,8 @@ class ConvLSTM(nn.Module):
             layer_output = torch.stack(output_inner, dim=1)
 
             if self.batch_normalization and layer_idx != self.num_layers-1:
-                layer_output = self.batch_norms[layer_idx](layer_output)#.permute(0, 2, 1, 3, 4))
-                layer_output = self.activations[layer_idx](layer_output)#.permute(0, 2, 1, 3, 4)
+                layer_output = self.batch_norms[layer_idx](layer_output.permute((0, 2, 1, 3, 4)))
+                layer_output = self.activations[layer_idx](layer_output).permute((0, 2, 1, 3, 4))
 
             cur_layer_input = layer_output
 
@@ -444,23 +444,27 @@ class RNNConvLSTM(nn.Module):
 
 
 class SegmentedConvLSTMNet(nn.Module):
-    def __init__(self, hidden_dims: List[int], kernel_size: Union[List[Tuple[int]], Tuple[int]], num_layers: int=1, device='cpu', n_channels: int = 5):
+    def __init__(self, hidden_dims: List[int], kernel_size: Union[List[Tuple[int]], Tuple[int]], num_layers: int=1, device='cpu', n_channels: int = 5, batch_normalization: bool = True):
         super(SegmentedConvLSTMNet, self).__init__()
         self.n_channels = n_channels
         self.hidden_dims = hidden_dims
         self.kernel_size = kernel_size
         self.num_layers = num_layers
         self.device = device
+        self.batch_normalization = batch_normalization
 
-        # Definir la red ConvLSTM
-        self.enc = ConvLSTM(n_channels, hidden_dims, kernel_size, num_layers, device, batch_first=True, return_all_layers=True, batch_normalization=True).to(device)
+        # Define ConvLSTM net
+        self.enc = ConvLSTM(n_channels, hidden_dims, kernel_size, num_layers, device, batch_first=True, return_all_layers=True, batch_normalization=batch_normalization).to(device)
         
-        # Batch Normalization y Activación ReLU
-        self.batch_norm = nn.BatchNorm3d(hidden_dims[-1], device=device)
-        self.activation = nn.ReLU()
+        # Batch Normalization and ReLU activation
+        ## BN2d because ConvLSTM is used for outputing frame by frame data
+        if self.batch_normalization:
+            self.batch_norm = nn.BatchNorm2d(hidden_dims[-1], device=device)
+            self.activation = nn.ReLU()
 
-        # Capa de salida
-        self.fc = nn.Conv3d(in_channels=hidden_dims[-1], out_channels=n_channels, kernel_size=(1, 1, 1), stride=1, padding=0).to(device)
+        # Output layer
+        ## Conv2d because ConvLSTM outputs frames one by one
+        self.fc = nn.Conv2d(in_channels=hidden_dims[-1], out_channels=n_channels, kernel_size=(1, 1), stride=1, padding=0).to(device)
         self.softmax = nn.Softmax(dim=1)
 
 
@@ -483,10 +487,12 @@ class SegmentedConvLSTMNet(nn.Module):
             else:
                 out, hidden_lstm_s2s = self.enc(lstm_dec_input, first_timestep=True)
             if return_source_prediction:
-                out = self.batch_norm(out[-1].permute(0, 2, 1, 3, 4))
-                out = self.activation(out)
+                out = out[-1].flatten(0, 1)
+                if self.batch_normalization:
+                    out = self.batch_norm(out)
+                    out = self.activation(out)
                 out = self.fc(out)
-                out = self.softmax(out).permute(0, 2, 1, 3, 4).flatten(0, 1)
+                out = self.softmax(out).unsqueeze(1)
                 lstm_out_source[:, t, :] = out.squeeze(1)
 
         lstm_dec_input = video[:, -1].unsqueeze(1)
@@ -494,10 +500,12 @@ class SegmentedConvLSTMNet(nn.Module):
 
         for t in range(target_len):
             out, hidden_lstm_s2s = self.enc(lstm_dec_input, hidden_lstm_s2s)
-            out = self.batch_norm(out[-1].permute(0, 2, 1, 3, 4))
-            out = self.activation(out)
+            out = out[-1].flatten(0, 1)
+            if self.batch_normalization:
+                out = self.batch_norm(out)
+                out = self.activation(out)
             out = self.fc(out)
-            out = self.softmax(out).permute(0, 2, 1, 3, 4).flatten(0, 1)
+            out = self.softmax(out).unsqueeze(1)
             lstm_out[:, t, :] = out.squeeze(1)
             if target_seq is not None and random.random() < teacher_forcing_ratio:
                 lstm_dec_input = target_seq[:, t].unsqueeze(1)
