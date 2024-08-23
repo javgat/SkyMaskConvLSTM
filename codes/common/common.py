@@ -65,8 +65,11 @@ class VideoDataset(Dataset):
         return vid.to(self.device), targ.to(self.device)
     
     def apply_transform(self, video):
+        seed = torch.seed()
         transformed_video = []
         for frame in video:
+            # Set the same seed for each frame to ensure consistent transformations
+            torch.manual_seed(seed)
             transformed_frame = self.transform(frame)
             transformed_video.append(transformed_frame)
         return torch.stack(transformed_video)
