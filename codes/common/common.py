@@ -38,12 +38,14 @@ class VideoDataset(Dataset):
         self.transform = transform
         self.stack_videos = stack_videos
         self.device = device
+        self.seed = torch.seed()
 
     def __len__(self):
         return len(self.videos)
 
     def ___getitem__(self, idx):
         video = self.videos[idx].values
+        self.seed = torch.seed()
         if self.transform is not None:
             video = self.apply_transform(video)
 
@@ -65,11 +67,10 @@ class VideoDataset(Dataset):
         return vid.to(self.device), targ.to(self.device)
     
     def apply_transform(self, video):
-        seed = torch.seed()
         transformed_video = []
         for frame in video:
             # Set the same seed for each frame to ensure consistent transformations
-            torch.manual_seed(seed)
+            torch.manual_seed(self.seed)
             transformed_frame = self.transform(frame)
             transformed_video.append(transformed_frame)
         return torch.stack(transformed_video)
