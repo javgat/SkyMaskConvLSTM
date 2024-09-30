@@ -1,7 +1,7 @@
 # SkyMaskConvLSTM
-Predicción de la posición de las nubes a partir de secuencias de imágenes y máscaras del cielo.
+Code repository for the Master's thesis titled 'Prediction of Cloud Position from Sequences of Images and Sky Masks', part of the Master's in Artificial Intelligence program at the Valencia International University (VIU).
 
-Repositorio de código del Trabajo de Fin de Máster en el Máster en Inteligencia Artificial de la Universidad Internacional de Valencia (VIU)
+Repositorio de código del Trabajo de Fin de Máster titulado 'Predicción de la posición de las nubes a partir de secuencias de imágenes y máscaras del cielo', del Máster en Inteligencia Artificial de la Universidad Internacional de Valencia (VIU).
 
 **Autor**: Javier Gatón Herguedas
 
