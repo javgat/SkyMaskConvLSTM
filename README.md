@@ -1,18 +1,8 @@
 # SkyMaskConvLSTM
-Code repository for the Master's thesis titled 'Prediction of Cloud Position from Sequences of Images and Sky Masks', part of the Master's in Artificial Intelligence program at the Valencia International University (VIU).
 
-Repositorio de código del Trabajo de Fin de Máster titulado 'Predicción de la posición de las nubes a partir de secuencias de imágenes y máscaras del cielo', del Máster en Inteligencia Artificial de la Universidad Internacional de Valencia (VIU).
-
-**Autor**: Javier Gatón Herguedas
-
-**Tutor**: Dr. César Augusto Guzmán
-
-**Tutor Externo**: Dr. Roberto Román Diez (Universidad de Valladolid)
+Code repository for the Paper "Comparative analysis of AI models for cloud motion forecasting: Full images vs. Segmented masks" by Javier Gatón Herguedas et al.
 
 ## Abstract
 
-This Master's thesis aims to develop an artificial intelligence model capable of predicting cloud movement using segmented sky images. Clouds play a crucial role in regulating solar radiation, and their movement and behavior are challenging to predict accurately. The study proposes two models: one based on raw sky images and another using segmented cloud masks. To assess their performance, different metrics such as Mean Squared Error (MSE), Intersection over Union (IoU), and Dice Coefficient were used. The results indicate that the model using segmented masks performs similarly or even slightly better than the one using raw images. This suggests that cloud movement prediction using segmented masks is a feasible technique, with potential to enhance the efficiency of solar energy management systems.
+This paper presents a comparative study of two artificial intelligence models for short-term cloud movement prediction in all-sky images. Both models employ computer vision and deep learning techniques but differ in their input: one uses 8-bits RGB color images, while the other operates on semantically segmented cloud masks. The results obtained show that the segmentation-based model consistently achieves superior predictive accuracy, as measured by the Jaccard index, Dice coefficient and categorical cross-entropy. These findings suggest that incorporating semantic segmentation as a preprocessing step enhances both accuracy and temporal stability. Potential applications of this research include the optimization of real-time solar power generation and improved short-term weather forecasting under variable sky conditions.
 
-## Resumen
-
-Este Trabajo de Fin de Máster tiene como objetivo desarrollar un modelo de inteligencia artificial capaz de predecir el movimiento de las nubes utilizando imágenes segmentadas del cielo. Dado que las nubes juegan un papel crucial en la regulación de la radiación solar, su movimiento y comportamiento son difíciles de predecir con precisión. El estudio propone dos modelos: uno basado en imágenes directamente y otro utilizando máscaras segmentadas de las nubes. Para evaluar su rendimiento, se utilizaron diferentes métricas como el error cuadrático medio (MSE), el índice de Jaccard (IoU) y el coeficiente de Dice. Los resultados muestran que el modelo que utiliza máscaras segmentadas tiene un rendimiento similar, o incluso ligeramente superior, al modelo basado en imágenes. Esto sugiere que la predicción del movimiento de nubes mediante máscaras segmentadas es una técnica viable, con potencial para mejorar la eficiencia en la gestión de sistemas de energía solar.
