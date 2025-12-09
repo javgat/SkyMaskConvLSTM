@@ -63,8 +63,8 @@ class VideoDataset(Dataset):
     def __getitem__(self, idx):
         vid, targ = self.___getitem__(idx)
         if self.stack_videos:
-            return torch.cat([vid, targ]).to(self.device)
-        return vid.to(self.device), targ.to(self.device)
+            return torch.cat([vid, targ])
+        return vid, targ
     
     def apply_transform(self, video):
         transformed_video = []
