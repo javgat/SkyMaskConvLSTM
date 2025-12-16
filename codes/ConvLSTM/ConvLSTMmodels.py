@@ -544,7 +544,7 @@ class SegmentedConvLSTMNet(nn.Module):
         if apply_softmax:
             # Para inferencia / visualización: devolvemos probabilidades
             probs_all = self.softmax(
-                logits_all.view(-1, self.n_channels, H, W)
+                logits_all.view(-1, self.n_channels, h, w)
             ).view_as(logits_all)
             return probs_all
 
