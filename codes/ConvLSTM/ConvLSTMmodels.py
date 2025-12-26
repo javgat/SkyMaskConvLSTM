@@ -483,7 +483,7 @@ class SegmentedConvLSTMNet(nn.Module):
     def forward(
             self, video, target_len: int, target_seq=None,
             teacher_forcing_ratio=0.5, return_source_prediction=False,
-            apply_softmax: bool = False,
+            apply_softmax: bool = False, hard_feedback: bool = False,
         ):
         # b, t, c, i0, i1
         video = video.to(self.device)
@@ -531,7 +531,11 @@ class SegmentedConvLSTMNet(nn.Module):
             if target_seq is not None and random.random() < teacher_forcing_ratio:
                 lstm_dec_input = target_seq[:, t].unsqueeze(1)
             else:
-                probs = self.softmax(logits)  # (B, C, H, W)
+                if hard_feedback:
+                    probs = torch.argmax(logits, dim=1)
+                    probs = nn.functional.one_hot(probs, num_classes=self.n_channels).permute(0, 3, 1, 2).float()
+                else:
+                    probs = self.softmax(logits)  # (B, C, H, W)
                 lstm_dec_input = probs.unsqueeze(1)  # (B, 1, C, H, W)
 
         # 3) Ensamblar salida final
