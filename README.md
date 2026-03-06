@@ -1,8 +1,28 @@
+<div align="center">
+
 # SkyMaskConvLSTM
 
-Code repository for the Paper "Comparative analysis of AI models for cloud motion forecasting: Full images vs. Segmented masks" by Javier Gatón Herguedas et al.
+Multi-frame cloud prediction in all-sky images from RGB images and segmented masks
+
+![graphical-abstract](./docs/grabs.png)
+
+</div>
 
 ## Abstract
 
-This paper presents a comparative study of two artificial intelligence models for short-term cloud movement prediction in all-sky images. Both models employ computer vision and deep learning techniques but differ in their input: one uses 8-bits RGB color images, while the other operates on semantically segmented cloud masks. The results obtained show that the segmentation-based model consistently achieves superior predictive accuracy, as measured by the Jaccard index, Dice coefficient and categorical cross-entropy. These findings suggest that incorporating semantic segmentation as a preprocessing step enhances both accuracy and temporal stability. Potential applications of this research include the optimization of real-time solar power generation and improved short-term weather forecasting under variable sky conditions.
+This paper presents a comparative study on the impact of input representation on
+deterministic artificial intelligence models for short-term multi-frame prediction in all-sky
+images. This work compares a model operating on 8-bit RGB all-sky images with a
+model that shares the same backbone, but operating directly on semantically
+segmented masks that encode cloud-related classes. Using an available sky
+segmentation model, predictions are evaluated in the segmentation label space using
+segmenter-derived masks as a proxy reference. Within this evaluation framework, the
+use of semantic masks as input for short-term prediction leads to improved temporal
+stability and higher agreement across standard segmentation metrics such as
+intersection over union, Dice coefficient, and categorical cross-entropy. While these
+results suggest potential relevance for weather and solar energy nowcasting
+applications, further validation against physical irradiance measurements is required.
 
+## Acknowledgments
+
+* [github.com/ndrplz/ConvLSTM_pytorch](https://github.com/ndrplz/ConvLSTM_pytorch)
