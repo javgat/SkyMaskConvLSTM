@@ -480,18 +480,25 @@ class SegmentedConvLSTMNet(nn.Module):
         self.softmax = nn.Softmax(dim=1)
 
 
-    def forward(self, video, target_len: int, target_seq=None, teacher_forcing_ratio=0.5, return_source_prediction=False):
+    def forward(
+            self, video, target_len: int, target_seq=None,
+            teacher_forcing_ratio=0.5, return_source_prediction=False,
+            apply_softmax: bool = False, hard_feedback: bool = False,
+        ):
         # b, t, c, i0, i1
         video = video.to(self.device)
         if target_seq is not None:
             target_seq = target_seq.to(self.device)
         ## LSTM
-        batch_size = video.size(0)
-        source_len = video.size(1)
+        batch_size, source_len, _, h, w = video.shape
         hidden_lstm_s2s = None
 
         if return_source_prediction:
-            lstm_out_source = torch.zeros((batch_size, source_len-1, self.n_channels, video.size(3), video.size(4))).to(video.device)
+            logits_source = torch.zeros(
+                (batch_size, source_len - 1, self.n_channels, h, w),
+                device=video.device
+            )
+        # 1 pass all frames except last by network
         for t in range(source_len - 1):
             lstm_dec_input = video[:, t].unsqueeze(1)
             if hidden_lstm_s2s is not None:
@@ -503,36 +510,50 @@ class SegmentedConvLSTMNet(nn.Module):
                 if self.batch_normalization:
                     out = self.batch_norm(out)
                     out = self.activation(out)
-                out = self.fc(out)
-                out = self.softmax(out).unsqueeze(1)
-                lstm_out_source[:, t, :] = out.squeeze(1)
-
-        lstm_dec_input = video[:, -1].unsqueeze(1)
-        lstm_out = torch.zeros((batch_size, target_len, self.n_channels, video.size(3), video.size(4))).to(video.device)
+                logits = self.fc(out)
+                logits_source[:, t, :] = logits
+        # 2 generate future preds
+        lstm_dec_input = video[:, -1].unsqueeze(1)  # último frame de entrada
+        logits_future = torch.zeros(
+            (batch_size, target_len, self.n_channels, h, w),
+            device=video.device
+        )
 
         for t in range(target_len):
             out, hidden_lstm_s2s = self.enc(lstm_dec_input, hidden_lstm_s2s)
-            out = out[-1].flatten(0, 1)
+            features = out[-1].flatten(0, 1)  # (B, hidden_dims[-1], H, W)
             if self.batch_normalization:
-                out = self.batch_norm(out)
-                out = self.activation(out)
-            out = self.fc(out)
-            out = self.softmax(out).unsqueeze(1)
-            lstm_out[:, t, :] = out.squeeze(1)
+                features = self.batch_norm(features)
+                features = self.activation(features)
+            logits = self.fc(features)  # (B, n_channels, H, W)
+
+            logits_future[:, t, :] = logits
             if target_seq is not None and random.random() < teacher_forcing_ratio:
                 lstm_dec_input = target_seq[:, t].unsqueeze(1)
             else:
-                lstm_dec_input = out
+                if hard_feedback:
+                    probs = torch.argmax(logits, dim=1)
+                    probs = nn.functional.one_hot(probs, num_classes=self.n_channels).permute(0, 3, 1, 2).float()
+                else:
+                    probs = self.softmax(logits)  # (B, C, H, W)
+                lstm_dec_input = probs.unsqueeze(1)  # (B, 1, C, H, W)
 
-        lstm_out = lstm_out.flatten(0, 1)
-        lstm_out = torch.unflatten(lstm_out, 0, (batch_size, target_len))
-
+        # 3) Ensamblar salida final
         if return_source_prediction:
-            lstm_out_source = lstm_out_source.flatten(0, 1)
-            lstm_out_source = torch.unflatten(lstm_out_source, 0, (batch_size, source_len - 1))
-            lstm_out = torch.cat([lstm_out_source, lstm_out], 1)
-        
-        return lstm_out
+            # concatenar logits de frames de entrada y futuros => (B, T_total, C, H, W)
+            logits_all = torch.cat([logits_source, logits_future], dim=1)
+        else:
+            logits_all = logits_future  # (B, T_out, C, H, W)
+
+        if apply_softmax:
+            # Para inferencia / visualización: devolvemos probabilidades
+            probs_all = self.softmax(
+                logits_all.view(-1, self.n_channels, h, w)
+            ).view_as(logits_all)
+            return probs_all
+
+        # Para entrenamiento con CrossEntropyLoss: devolvemos LOGITS
+        return logits_all
 
 
 class Seq2SeqConvLSTM(nn.Module):
