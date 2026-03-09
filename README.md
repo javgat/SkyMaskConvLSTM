@@ -4,7 +4,7 @@
 
 Multi-frame cloud prediction in all-sky images from RGB images and segmented masks
 
-![graphical-abstract](./docs/grabs.png)
+![graphical-abstract](./docs/other/grabs.png)
 
 </div>
 
