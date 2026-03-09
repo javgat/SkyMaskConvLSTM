@@ -1,6 +1,6 @@
 <div align="center">
 
-# SkyMaskConvLSTM
+# [Solar Energy 2026] SkyMaskConvLSTM
 
 Multi-frame cloud prediction in all-sky images from RGB images and segmented masks
 
@@ -23,6 +23,17 @@ intersection over union, Dice coefficient, and categorical cross-entropy. While 
 results suggest potential relevance for weather and solar energy nowcasting
 applications, further validation against physical irradiance measurements is required.
 
+## Repository Structure
+
+- `codes`: Software for the implementation, training and evaluation of the models.
+  - `common`: Functions and scripts useful for different networks.
+  - `CNNLSTM`: Software related to the CNN-LSTM models. They were not included in the journal article,
+    as the results indicated a bad performance. Its code and implementation may be useful.
+  - `ConvLSTM`: Software related to the main networks & models: RGBConvLSTM and MaskConvLSTM.
+  - `segmenter`: Software related to the evaluation of the ancillary GOA-UVa All-Sky Segmentation U-Net Model used.
+- `docs`: Plots, diagrams and other figures.
+
 ## Acknowledgments
 
 * [github.com/ndrplz/ConvLSTM_pytorch](https://github.com/ndrplz/ConvLSTM_pytorch)
+* [doi.org/10.5281/zenodo.18894938](https://doi.org/10.5281/zenodo.18894938)
