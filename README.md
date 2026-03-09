@@ -29,7 +29,8 @@ applications, further validation against physical irradiance measurements is req
   - `common`: Functions and scripts useful for different networks.
   - `CNNLSTM`: Software related to the CNN-LSTM models. They were not included in the journal article,
     as the results indicated a bad performance. Its code and implementation may be useful.
-  - `ConvLSTM`: Software related to the main networks & models: RGBConvLSTM and MaskConvLSTM.
+  - `ConvLSTM`: Software related to the main networks & models: RGBConvLSTM and MaskConvLSTM. The evaluation and
+    comparison of their performance is mainly carried out in `codes/ConvLSTM/Comparison.ipynb`.
   - `segmenter`: Software related to the evaluation of the ancillary GOA-UVa All-Sky Segmentation U-Net Model used.
 - `docs`: Plots, diagrams and other figures.
 
