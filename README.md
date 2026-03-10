@@ -37,4 +37,5 @@ applications, further validation against physical irradiance measurements is req
 ## Acknowledgments
 
 * [github.com/ndrplz/ConvLSTM_pytorch](https://github.com/ndrplz/ConvLSTM_pytorch)
+* [github.com/yuhao-nie/SkyGPT](https://github.com/yuhao-nie/SkyGPT)
 * [doi.org/10.5281/zenodo.18894938](https://doi.org/10.5281/zenodo.18894938)
