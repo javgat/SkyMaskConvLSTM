@@ -4,6 +4,8 @@
 
 Multi-frame cloud prediction in all-sky images from RGB images and segmented masks
 
+[![Paper DOI: 10.1016/j.solener.2026.114515](https://img.shields.io/badge/paper_doi-10.1016%2Fj.solener.2026.114515-informational?style=for-the-badge)](https://doi.org/10.1016/j.solener.2026.114515)
+
 ![graphical-abstract](./docs/other/grabs.png)
 
 </div>
@@ -28,11 +30,27 @@ applications, further validation against physical irradiance measurements is req
 - `codes`: Software for the implementation, training and evaluation of the models.
   - `common`: Functions and scripts useful for different networks.
   - `CNNLSTM`: Software related to the CNN-LSTM models. They were not included in the journal article,
-    as the results indicated a bad performance. Its code and implementation may be useful.
+    due to poor performance, but the code may still be of interest.
   - `ConvLSTM`: Software related to the main networks & models: RGBConvLSTM and MaskConvLSTM. The evaluation and
     comparison of their performance is mainly carried out in `codes/ConvLSTM/Comparison.ipynb`.
-  - `segmenter`: Software related to the evaluation of the ancillary GOA-UVa All-Sky Segmentation U-Net Model used.
-- `docs`: Plots, diagrams and other figures.
+  - `segmenter`: Software related to the evaluation of the ancillary GOA-UVa all-sky segmentation U-Net model.
+- `docs`: Plots, diagrams and additional figures.
+
+## Citation
+
+If you find our study useful to your research, please cite with:
+```
+@article{gaton2026skymaskconvlstm,
+  title={Multi-frame cloud prediction in all-sky images from RGB images and segmented masks},
+  author={Gatón, Javier and Román, Roberto and Guzman, Cesar and González-Fernández, Daniel and Longarela, Bruno and Toledano, Carlos and González, Ramiro},
+  journal={Solar Energy},
+  volume={XXX},
+  pages={XX--XX},
+  year={2026},
+  publisher={Elsevier}
+  doi={10.1016/j.solener.2026.114515}
+}
+```
 
 ## Acknowledgments
 
