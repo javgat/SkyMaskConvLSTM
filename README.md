@@ -41,14 +41,16 @@ applications, further validation against physical irradiance measurements is req
 If you find our study useful to your research, please cite with:
 ```
 @article{gaton2026skymaskconvlstm,
-  title={Multi-frame cloud prediction in all-sky images from RGB images and segmented masks},
-  author={Gatón, Javier and Román, Roberto and Guzman, Cesar and González-Fernández, Daniel and Longarela, Bruno and Toledano, Carlos and González, Ramiro},
-  journal={Solar Energy},
-  volume={XXX},
-  pages={XX--XX},
-  year={2026},
-  publisher={Elsevier}
-  doi={10.1016/j.solener.2026.114515}
+  title = {Multi-frame cloud prediction in all-sky images from RGB images and segmented masks},
+  author = {Javier Gatón and Roberto Román and Cesar Guzman and Daniel González-Fernández and Bruno Longarela and Carlos Toledano and Ramiro González},
+  journal = {Solar Energy},
+  volume = {311},
+  pages = {114515},
+  year = {2026},
+  issn = {0038-092X},
+  publisher = {Elsevier},
+  doi = {10.1016/j.solener.2026.114515},
+  url = {https://www.sciencedirect.com/science/article/pii/S0038092X26002033},
 }
 ```
 
